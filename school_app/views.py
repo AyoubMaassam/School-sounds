@@ -1004,43 +1004,17 @@ def delete_group(request, group_id):
     return HttpResponseRedirect(reverse_lazy('group_list'))
 
 def delete_session(request, session_id):
-    session = get_object_or_404(Session.objects.select_related('group'), id=session_id)
+    session = get_object_or_404(Session, id=session_id)
     if request.method == 'POST':
         session_info = f"حصة الفوج '{session.group.name}' بتاريخ {session.date.strftime('%Y-%m-%d')}"
-
+        session_id_for_log = session.id # Capture ID before deletion
         try:
-            with transaction.atomic():
-                # Find paid attendances before deleting
-                paid_attendances = Attendance.objects.filter(session=session, student_paid_for_session=True).select_related('student')
-
-                refund_count = 0
-                total_refund_amount = Decimal('0.00')
-
-                if paid_attendances.exists() and session.group.price_per_4_sessions > 0:
-                    price_per_session = session.group.price_per_4_sessions / Decimal('4')
-
-                    for attendance in paid_attendances:
-                        student = attendance.student
-                        student.prepaid_balance += price_per_session
-                        student.save()
-                        refund_count += 1
-                        total_refund_amount += price_per_session
-
-                # Now, delete the session
-                session.delete()
-
-                success_message = f"تم حذف {session_info} بنجاح."
-                if refund_count > 0:
-                    success_message += f" وتم إرجاع مبلغ {total_refund_amount:.2f} دج إلى رصيد {refund_count} طالب/طلاب."
-
-                messages.success(request, success_message)
-                log_action('session_deleted', session_info, f"{success_message}")
-
-        except Exception as e:
+            session.delete() # Associated attendance records will be deleted due to on_delete=models.CASCADE
+            messages.success(request, f"تم حذف {session_info} بنجاح وجميع سجلات الحضور المتعلقة بها.")
+            log_action('session_deleted', session_info, f"تم حذف {session_info}.")
+        except Exception as e: # Catch any other unexpected error during deletion
             messages.error(request, f"حدث خطأ غير متوقع أثناء محاولة حذف الحصة: {str(e)}")
-
         return HttpResponseRedirect(reverse_lazy('session_list'))
-
     # For GET or other methods, redirect to session list.
     return HttpResponseRedirect(reverse_lazy('session_list'))
 

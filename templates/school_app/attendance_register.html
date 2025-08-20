@@ -97,7 +97,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return cookieValue;
     }
 
-    function showNotification(message, type = 'info', duration = 2000) {
+    function showNotification(message, type = 'info', duration = 2000, soundUrl = null) {
+        if (soundUrl) {
+            const audio = new Audio(soundUrl);
+            audio.play().catch(e => console.error("Error playing sound:", e));
+        }
+
         const toast = document.createElement('div');
         toast.className = `notification-toast ${type}`;
         toast.textContent = message;
@@ -135,18 +140,26 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.status === 'multiple_sessions_found') {
                 displaySessionChoiceModal(data.sessions, data.student_id);
             } else if (response.ok) {
-                showNotification(`${data.message}`, 'success', 1500);
                 if (data.payment_status_message) {
+                    // Successful attendance, but unpaid. Show success message (no sound), then warning with sound.
+                    showNotification(`${data.message}`, 'success', 1500);
                     setTimeout(() => {
-                        showNotification(data.payment_status_message, 'warning', 1500);
+                        showNotification(data.payment_status_message, 'warning', 1500, '/static/sounds/sound2.mp3');
                     }, 500);
+                } else {
+                    // Clean success. Play the success sound.
+                    showNotification(`${data.message}`, 'success', 1500, '/static/sounds/sound1.mp3');
                 }
             } else {
-                showNotification(data.message || 'خطأ غير معروف', 'error', 3000);
+                if (data.status === 'already_registered') {
+                    showNotification(data.message || 'مسجل بالفعل', 'error', 3000, '/static/sounds/sound3.mp3');
+                } else {
+                    showNotification(data.message || 'خطأ غير معروف', 'error', 3000, '/static/sounds/sound4.mp3');
+                }
             }
         } catch (error) {
             console.error('Error recording attendance:', error);
-            showNotification('فشل الاتصال بالخادم.', 'error', 3000);
+            showNotification('فشل الاتصال بالخادم.', 'error', 3000, '/static/sounds/sound4.mp3');
         } finally {
             if (document.getElementById('multiple-sessions-modal').style.display !== 'block') {
                 scanInput.value = '';
@@ -196,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             if (selectedSessions.length === 0) {
-                showNotification('الرجاء اختيار حصة واحدة على الأقل.', 'error');
+                showNotification('الرجاء اختيار حصة واحدة على الأقل.', 'error', 3000, '/static/sounds/sound4.mp3');
                 return;
             }
 
@@ -214,12 +227,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await response.json();
                 if (response.ok) {
-                    showNotification(data.message, 'success');
+                    showNotification(data.message, 'success', 2000, '/static/sounds/sound1.mp3');
                 } else {
-                    showNotification(data.message || 'خطأ في تسجيل الحضور', 'error');
+                    showNotification(data.message || 'خطأ في تسجيل الحضور', 'error', 3000, '/static/sounds/sound4.mp3');
                 }
             } catch (error) {
-                showNotification('فشل الاتصال بالخادم.', 'error');
+                showNotification('فشل الاتصال بالخادم.', 'error', 3000, '/static/sounds/sound4.mp3');
             } finally {
                 closeAndReset();
             }
